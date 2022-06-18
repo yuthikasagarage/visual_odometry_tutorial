@@ -1,0 +1,13 @@
+{
+    "python.linting.enabled": true,
+    "python.pythonPath": "/opt/homebrew/Caskroom/miniforge/base/envs/project/bin/python",
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.linting.pylintArgs": [
+    "--extension-pkg-whitelist=cv2",
+    "--errors-only"
+    ],
+    "python.testing.pytestArgs": [
+    "project"
+    ],
+    "python.testing.pytestEnabled": true,
+    }
