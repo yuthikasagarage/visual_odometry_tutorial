@@ -15,8 +15,7 @@ def feature_detecting_harris(img):
 
     # Threshold for an optimal value, it may vary depending on the image.
     img[harrisDetector > 0.01*harrisDetector.max()] = [0, 0, 255]
-    cv2.imshow('dst', img)
-    cv2.waitKey(0)
+
 
 
 def feature_matching_orb(img1, img2):
