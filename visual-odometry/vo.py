@@ -6,41 +6,29 @@ from glob import glob
 from pose_evaluation_utils import *
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--data_dir_root", type=str, default='YOUR/DATASET/REPO',
+parser.add_argument("--data_dir_root", type=str, default='../dataset/sequences/00/image_0',
                     help="dataset root")
-parser.add_argument("--dataset_type", type=str, default='KITTI', choices=['KITTI', 'TUM'],
-                    help="datasetset type")
 parser.add_argument("--len_trajMap", type=int, default=1000,
                     help="size of the trajectory map")
 args = parser.parse_args()
 
 # dataset directory
-if args.dataset_type == 'TUM':
-    seq = 'freiburg2_desk' 
-    img_data_dir = args.data_dir_root + 'tum/rgbd_dataset_' + seq + '/rgb/'
-    gt_pose_dir = args.data_dir_root + 'tum/rgbd_dataset_' + seq + '/groundtruth.txt'
 
-elif args.dataset_type == 'KITTI':
-    seq = '09'
-    gt_pose_dir = args.data_dir_root + 'kitti-odom/' + 'data_odometry_poses/dataset/poses/' + seq + '.txt'
-    img_data_dir = args.data_dir_root + 'kitti-odom/' + 'data_odometry_color/dataset/sequences/' + seq + '/image_2/'
+
+seq = '00'
+gt_pose_dir = '../dataset-poses/poses/00.txt'
+img_data_dir = '../dataset/sequences/00/image_0'
 
 # intrinsic parameters:
-if args.dataset_type == 'KITTI':
-    width = 1241.0
-    height = 376.0
-    fx, fy, cx, cy = [718.8560, 718.8560, 607.1928, 185.2157]
-
-elif args.dataset_type == 'TUM':
-    width = 640
-    height = 480
-    fx, fy, cx, cy = [535.4, 539.2, 320.1, 247.6]
+width = 1241.0
+height = 376.0
+fx, fy, cx, cy = [718.8560, 718.8560, 607.1928, 185.2157]
 
 
 if __name__ == "__main__":
     # define the output pose file
     trajMap = np.zeros((args.len_trajMap, args.len_trajMap, 3), dtype=np.uint8)
-    out_pose_file = './' + 'TUM' + '-' + seq + '-traj_est.txt'
+    out_pose_file = './' + '-traj_est.txt'
 
     # get the image list in the directory
     img_list = glob(img_data_dir + '/*.png')

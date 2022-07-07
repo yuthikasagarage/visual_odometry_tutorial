@@ -10,4 +10,7 @@
     "project"
     ],
     "python.testing.pytestEnabled": true,
+    "python.analysis.extraPaths": [
+        "./SuperPointPretrainedNetwork-master"
+    ],
     }
