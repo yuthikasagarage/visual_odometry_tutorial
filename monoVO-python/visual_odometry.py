@@ -2,7 +2,10 @@ import time
 import numpy as np 
 import cv2
 from demo_superpoint import SuperPointNet
-
+import torch
+from raftoptical import *
+                
+                
 STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
 STAGE_DEFAULT_FRAME = 2
@@ -51,12 +54,31 @@ class VisualOdometry:
         self.px_ref = None
         self.px_cur = None
         self.mask =[]
+        self.depth_map = []
         self.focal = cam.fx
+        self.fps = 0
         self.pp = (cam.cx, cam.cy)
         self.trueX, self.trueY, self.trueZ = 0, 0, 0
         self.detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
-        with open(annotations) as f:
-            self.annotations = f.readlines()
+        self.model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
+        self.midas = torch.hub.load("intel-isl/MiDaS", self.model_type)
+        # Move model to GPU if available    
+        self.device = torch.device("cuda")
+        self.midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+        self.parser = ArgumentParser()
+        self.parser.add_argument("--model", help="restore checkpoint", default="./raft-small.pth")
+        self.parser.add_argument("--small", action="store_true", help="use small model", default='small')
+        self.parser.add_argument("--iters", type=int, default=12)
+        self.parser.add_argument(
+            "--mixed_precision", action="store_true", help="use mixed precision"
+        )
+        self.args = self.parser.parse_args()
+        # Load transforms to resize and normalize the image
+        self.model = RAFT(self.args)
+        self.pretrained_weights = torch.load(self.args.model)
+        self.nnModel = torch.nn.DataParallel(self.model)
+        self.nnModel.load_state_dict(self.pretrained_weights)
+        
 
     def getAbsoluteScale(self, frame_id):  #specialized for KITTI odometry dataset
         ss = self.annotations[frame_id-1].strip().split()
@@ -101,7 +123,7 @@ class VisualOdometry:
         cv2.imshow('feature matching', img_matching)
 
         pts1 = np.float32([kp1[m.queryIdx].pt for m in matches])
-        pts2 = np.float32([kp2[m.trainIdx].pt for m in matches])
+        pts2 = np.float32([kp2[m.trainIdx].pt for m in matches]) 
         return pts1, pts2
     
     def processFirstFrame(self):
@@ -129,18 +151,83 @@ class VisualOdometry:
             self.px_cur = self.detector.detect(self.new_frame)
             self.px_cur = np.array([x.pt for x in self.px_cur], dtype=np.float32)
         self.px_ref = self.px_cur
+    
+    def inference(self,img, img2):
+         # load pretrained weight
+        self.nnModel.to(self.device)
+        # change model's mode to evaluation
+        self.nnModel.eval()
+        # frame preprocessing
+        frame_1 = frame_preprocess(img, self.device)
+        frame_2 = img2
+        
+        with torch.no_grad():
+                # read the next frame
+            frame_2 = frame_preprocess(frame_2, self.device)
+                # predict the flow
+            flow_low, flow_up = self.nnModel(frame_1, frame_2, iters=12, test_mode=True)
+                # transpose the flow output and convert it into numpy array
+            vizualize_flow(frame_1, flow_up)
 
-    def update(self, img, frame_id):
-        assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
-        self.new_frame = img
-        if(self.frame_stage == STAGE_DEFAULT_FRAME):
-            self.processFrame(frame_id)
-            self.mask = np.zeros_like(self.new_frame)
-        elif(self.frame_stage == STAGE_SECOND_FRAME):
-            self.processSecondFrame()
-            self.mask = np.zeros_like(self.new_frame)
-        elif(self.frame_stage == STAGE_FIRST_FRAME):
-            self.processFirstFrame()
-        self.last_frame = self.new_frame   
-        self.mask = np.zeros_like(self.new_frame)
+    
+    def update(self, img, frame_id, img2):
+  
+        # assert(img.ndim==2 and img.shape[0]==self.cam.height and img.shape[1]==self.cam.width), "Frame: provided image has not the same size as the camera model or image is not grayscale"
+        # self.new_frame = img
+        # if(self.frame_stage == STAGE_DEFAULT_FRAME):
+        #     self.processFrame(frame_id)
+        #     self.mask = np.zeros_like(self.new_frame)
+        # elif(self.frame_stage == STAGE_SECOND_FRAME):
+        #     self.processSecondFrame()
+        #     self.mask = np.zeros_like(self.new_frame)
+        # elif(self.frame_stage == STAGE_FIRST_FRAME):
+        #     self.processFirstFrame()
+        # self.last_frame = self.new_frame   
+        # self.mask = np.zeros_like(self.new_frame)
+        
+        imgMidas = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        start = time.time()
+        self.midas.to(self.device)
+        self.midas.eval()
+        transform = self.midas_transforms.small_transform
+        input_batch = transform(imgMidas).to(self.device)
+        
+        with torch.no_grad():
+            prediction = self.midas(input_batch)
 
+            prediction = torch.nn.functional.interpolate(
+                prediction.unsqueeze(1),
+                size=imgMidas.shape[:2],
+                mode="bicubic",
+                align_corners=False,
+            ).squeeze()
+
+        depth_map = prediction.cpu().numpy()
+
+        self.depth_map = cv2.normalize(depth_map, None, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_64F)
+
+
+        end = time.time()
+        totalTime = end - start
+
+        self.fps = 1 / totalTime
+
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        depth_map = (depth_map*255).astype(np.uint8)
+        depth_map = cv2.applyColorMap(depth_map , cv2.COLORMAP_MAGMA)
+        
+        
+        # optical flow 
+        
+        imgOp = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
+        img2Op = cv2.cvtColor(img2,cv2.COLOR_GRAY2RGB)
+        
+        y=0
+        x=351
+        h=360
+        w=640
+        imgOp = imgOp[y:y+h, x:x+w]
+        img2Op = img2Op[y:y+h, x:x+w]
+        
+        self.inference(imgOp, img2Op)

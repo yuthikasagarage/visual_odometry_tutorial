@@ -11,6 +11,7 @@
     ],
     "python.testing.pytestEnabled": true,
     "python.analysis.extraPaths": [
-        "./SuperPointPretrainedNetwork-master"
+        "./SuperPointPretrainedNetwork-master",
+        "./monoVO-python/RAFT/core"
     ],
     }
