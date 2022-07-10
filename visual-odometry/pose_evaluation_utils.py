@@ -405,3 +405,5 @@ def dump_pose_seq_TUM(out_file, poses, times):
             rot = this_pose[:3, :3]
             qw, qx, qy, qz = rot2quat(rot)
             f.write('%f %f %f %f %f %f %f %f\n' % (times[p], tx, ty, tz, qx, qy, qz, qw))
+
+

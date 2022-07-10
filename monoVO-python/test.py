@@ -10,7 +10,6 @@ vo = VisualOdometry(cam, '../dataset-poses/poses/00.txt')
 files = next(os.walk("../dataset/sequences/00/image_0"))[2]
 file_count = len(files)
 
-
 traj = np.zeros((600,600,3), dtype=np.uint8)
 
 for img_id in range(file_count):
@@ -18,16 +17,18 @@ for img_id in range(file_count):
     img2 = cv2.imread('../dataset/sequences/00/image_0/'+str(img_id+1).zfill(6)+'.png', 0)
     
     vo.update(img, img_id, img2)
- 
-    cv2.putText(img, f'FPS: {int(vo.fps)}', (20,70), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0,255,0), 2)
-    cv2.imshow('Image', img)
-    cv2.imshow('Depth Map', vo.depth_map)
+    # depth = cv2.merge((vo.depth_map,vo.depth_map,vo.depth_map))
     
+    # depthFlo = np.concatenate([depth,vo.flo/255], axis=1)
+    # cv2.putText(vo.depth_map, f'FPS: {int(vo.fps)}', (20,70), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0,255,0), 2)
+    # cv2.imshow("Optical Flow",vo.flo)
+    # cv2.imshow('asa', img)
     # cur_t = vo.cur_t
     # if(img_id > 2):
-    # 	x, y, z = cur_t[0], cur_t[1], cur_t[2]
+    #     x, y, z = cur_t[0], cur_t[1], cur_t[2]
     # else:
-    # 	x, y, z = 0., 0., 0.
+    #     x, y, z = 0., 0., 0.
+     
     # draw_x, draw_y = int(x)+290, int(z)+90
     # true_x, true_y = int(vo.trueX)+290, int(vo.trueZ)+90
 
